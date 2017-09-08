@@ -281,12 +281,12 @@ func (s *Silences) GC() (int, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	for id, sil := range s.st {
+	for id, sil := range s.st.data {
 		if sil.ExpiresAt.IsZero() {
 			return n, errors.New("unexpected zero expiration timestamp")
 		}
 		if !sil.ExpiresAt.After(now) {
-			delete(s.st, id)
+			delete(s.st.data, id)
 			delete(s.mc, sil.Silence)
 			n++
 		}
@@ -347,7 +347,7 @@ func cloneSilence(sil *pb.Silence) *pb.Silence {
 }
 
 func (s *Silences) getSilence(id string) (*pb.Silence, bool) {
-	msil, ok := s.st[id]
+	msil, ok := s.st.data[id]
 	if !ok {
 		return nil, false
 	}
@@ -365,9 +365,14 @@ func (s *Silences) setSilence(sil *pb.Silence) error {
 		Silence:   sil,
 		ExpiresAt: sil.EndsAt.Add(s.retention),
 	}
-	st := gossipData{sil.Id: msil}
+	st := gossipData{
+		data: silenceMap{sil.Id: msil},
+	}
 
+	s.mtx.Lock()
 	s.st.Merge(st)
+	s.mtx.Unlock()
+
 	s.gossip.GossipBroadcast(st)
 
 	return nil
@@ -593,12 +598,12 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, error) {
 
 	if q.ids != nil {
 		for _, id := range q.ids {
-			if s, ok := s.st[string(id)]; ok {
+			if s, ok := s.st.data[string(id)]; ok {
 				res = append(res, s.Silence)
 			}
 		}
 	} else {
-		for _, sil := range s.st {
+		for _, sil := range s.st.data {
 			res = append(res, sil.Silence)
 		}
 	}
@@ -647,14 +652,14 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 			sil.Silence.Comments = nil
 		}
 
-		st[sil.Silence.Id] = &sil
+		st.data[sil.Silence.Id] = &sil
 		_, err := s.mc.Get(sil.Silence)
 		if err != nil {
 			return err
 		}
 	}
 
-	s.st = st
+	s.st.data = st.data
 
 	return nil
 }
@@ -669,7 +674,7 @@ func (s *Silences) Snapshot(w io.Writer) (int, error) {
 	defer s.mtx.Unlock()
 
 	var n int
-	for _, s := range s.st {
+	for _, s := range s.st.data {
 		m, err := pbutil.WriteDelimited(w, s)
 		if err != nil {
 			return n + m, err
@@ -700,7 +705,7 @@ func (g gossiper) OnGossip(msg []byte) (mesh.GossipData, error) {
 	g.mtx.Lock()
 	defer g.mtx.Unlock()
 
-	if delta := g.st.mergeDelta(gd); len(delta) > 0 {
+	if delta := g.st.mergeDelta(gd); len(delta.data) > 0 {
 		return delta, nil
 	}
 	return nil, nil
@@ -724,7 +729,12 @@ func (g gossiper) OnGossipUnicast(src mesh.PeerName, msg []byte) error {
 	panic("not implemented")
 }
 
-type gossipData map[string]*pb.MeshSilence
+type silenceMap map[string]*pb.MeshSilence
+
+type gossipData struct {
+	data silenceMap
+	mtx  sync.RWMutex
+}
 
 func decodeGossipData(msg []byte) (gossipData, error) {
 	gd := gossipData{}
@@ -738,7 +748,7 @@ func decodeGossipData(msg []byte) (gossipData, error) {
 			}
 			return gd, err
 		}
-		gd[s.Silence.Id] = &s
+		gd.data[s.Silence.Id] = &s
 	}
 	return gd, nil
 }
@@ -753,7 +763,11 @@ func (gd gossipData) Encode() [][]byte {
 		res [][]byte
 		n   int
 	)
-	for _, s := range gd {
+
+	gd.mtx.RLock()
+	defer gd.mtx.Unlock()
+
+	for _, s := range gd.data {
 		m, err := pbutil.WriteDelimited(&buf, s)
 		n += m
 		if err != nil {
@@ -772,16 +786,27 @@ func (gd gossipData) Encode() [][]byte {
 }
 
 func (gd gossipData) clone() gossipData {
-	res := make(gossipData, len(gd))
-	for id, s := range gd {
-		res[id] = s
+	gd.mtx.RLock()
+	defer gd.mtx.Unlock()
+
+	data := make(silenceMap, len(gd.data))
+	for id, s := range gd.data {
+		data[id] = s
 	}
+	res := gossipData{data: data}
 	return res
 }
 
 // Merge the silence set with gossip data and return a new silence state.
 func (gd gossipData) Merge(other mesh.GossipData) mesh.GossipData {
-	for id, s := range other.(gossipData) {
+	ot := other.(gossipData)
+	ot.mtx.RLock()
+	defer ot.mtx.Unlock()
+
+	gd.mtx.Lock()
+	defer gd.mtx.Unlock()
+
+	for id, s := range ot.data {
 		// Comments list was moved to a single comment. Apply upgrade
 		// on silences received from peers.
 		if len(s.Silence.Comments) > 0 {
@@ -790,13 +815,13 @@ func (gd gossipData) Merge(other mesh.GossipData) mesh.GossipData {
 			s.Silence.Comments = nil
 		}
 
-		prev, ok := gd[id]
+		prev, ok := gd.data[id]
 		if !ok {
-			gd[id] = s
+			gd.data[id] = s
 			continue
 		}
 		if prev.Silence.UpdatedAt.Before(s.Silence.UpdatedAt) {
-			gd[id] = s
+			gd.data[id] = s
 		}
 	}
 	return gd
@@ -806,7 +831,14 @@ func (gd gossipData) Merge(other mesh.GossipData) mesh.GossipData {
 // containing things that have changed.
 func (gd gossipData) mergeDelta(od gossipData) gossipData {
 	delta := gossipData{}
-	for id, s := range od {
+
+	od.mtx.RLock()
+	defer od.mtx.Unlock()
+
+	gd.mtx.Lock()
+	defer gd.mtx.Unlock()
+
+	for id, s := range od.data {
 		// Comments list was moved to a single comment. Apply upgrade
 		// on silences received from peers.
 		if len(s.Silence.Comments) > 0 {
@@ -815,15 +847,15 @@ func (gd gossipData) mergeDelta(od gossipData) gossipData {
 			s.Silence.Comments = nil
 		}
 
-		prev, ok := gd[id]
+		prev, ok := gd.data[id]
 		if !ok {
-			gd[id] = s
-			delta[id] = s
+			gd.data[id] = s
+			delta.data[id] = s
 			continue
 		}
 		if prev.Silence.UpdatedAt.Before(s.Silence.UpdatedAt) {
-			gd[id] = s
-			delta[id] = s
+			gd.data[id] = s
+			delta.data[id] = s
 		}
 	}
 	return delta
