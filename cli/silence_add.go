@@ -56,8 +56,16 @@ var addCmd = &cobra.Command{
 }
 
 func init() {
-	user, _ := user.Current()
-	addCmd.Flags().StringP("author", "a", user.Username, "Username for CreatedBy field")
+	user, err := user.Current()
+	username := ""
+
+	if err != nil {
+		fmt.Errorf("Failed to get current user")
+	} else {
+		username = user.Username
+	}
+
+	addCmd.Flags().StringP("author", "a", username, "Username for CreatedBy field")
 	addCmd.Flags().StringP("expires", "e", "1h", "Duration of silence (100h)")
 	addCmd.Flags().String("expire-on", "", "Expire at a certain time (Overwrites expires) RFC3339 format 2006-01-02T15:04:05Z07:00")
 	addCmd.Flags().StringP("comment", "c", "", "A comment to help describe the silence")
