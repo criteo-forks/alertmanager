@@ -988,7 +988,12 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		apiURL = n.conf.APIURL + "v2/alerts"
 		var teams []map[string]string
 		for _, t := range strings.Split(string(tmpl(n.conf.Teams)), ",") {
-			teams = append(teams, map[string]string{"name": t})
+			if len(t) != 0 {
+				teams = append(teams, map[string]string{"name": t})
+			}
+		}
+		if len(teams) == 0 {
+			teams = nil
 		}
 		msg = &opsGenieCreateMessage{
 			Alias:       alias,
