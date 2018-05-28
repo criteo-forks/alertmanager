@@ -655,6 +655,11 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		tmplText = tmplText(n.tmpl, data, &err)
 	)
 
+	key, ok := GroupKey(ctx)
+	if !ok {
+		return false, fmt.Errorf("group key missing")
+	}
+
 	attachment := &slackAttachment{
 		Title:     tmplText(n.conf.Title),
 		TitleLink: tmplText(n.conf.TitleLink),
@@ -696,11 +701,16 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, err
 	}
 
+	level.Debug(n.logger).Log("msg", "Notifying Slack", "incident", key, "req", buf.String())
+
 	resp, err := ctxhttp.Post(ctx, http.DefaultClient, string(n.conf.APIURL), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
 	resp.Body.Close()
+
+	body, _ := ioutil.ReadAll(resp.Body)
+	level.Debug(n.logger).Log("msg", "response: "+string(body), "incident", key)
 
 	return n.retry(resp.StatusCode)
 }
