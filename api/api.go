@@ -811,7 +811,7 @@ func (api *API) respondError(w http.ResponseWriter, apiErr apiError, data interf
 	case errorInternal:
 		w.WriteHeader(http.StatusInternalServerError)
 	default:
-		panic(fmt.Sprintf("unknown error type %q", apiErr))
+		panic(fmt.Sprintf("unknown error type %v", apiErr))
 	}
 
 	b, err := json.Marshal(&response{

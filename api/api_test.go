@@ -21,7 +21,7 @@ func TestAlertFiltering(t *testing.T) {
 	// Equal
 	equal, err := labels.NewMatcher(labels.MatchEqual, "label1", "test1")
 	if err != nil {
-		t.Error("Unexpected error %v", err)
+		t.Errorf("Unexpected error %v", err)
 	}
 
 	tests := []test{
@@ -39,7 +39,7 @@ func TestAlertFiltering(t *testing.T) {
 	// Not Equal
 	notEqual, err := labels.NewMatcher(labels.MatchNotEqual, "label1", "test1")
 	if err != nil {
-		t.Error("Unexpected error %v", err)
+		t.Errorf("Unexpected error %v", err)
 	}
 
 	tests = []test{
@@ -57,7 +57,7 @@ func TestAlertFiltering(t *testing.T) {
 	// Regexp Equal
 	regexpEqual, err := labels.NewMatcher(labels.MatchRegexp, "label1", "tes.*")
 	if err != nil {
-		t.Error("Unexpected error %v", err)
+		t.Errorf("Unexpected error %v", err)
 	}
 
 	tests = []test{
@@ -75,7 +75,7 @@ func TestAlertFiltering(t *testing.T) {
 	// Regexp Not Equal
 	regexpNotEqual, err := labels.NewMatcher(labels.MatchNotRegexp, "label1", "tes.*")
 	if err != nil {
-		t.Error("Unexpected error %v", err)
+		t.Errorf("Unexpected error %v", err)
 	}
 
 	tests = []test{
@@ -101,7 +101,7 @@ func TestSilenceFiltering(t *testing.T) {
 	// Equal
 	equal, err := labels.NewMatcher(labels.MatchEqual, "label1", "test1")
 	if err != nil {
-		t.Error("Unexpected error %v", err)
+		t.Errorf("Unexpected error %v", err)
 	}
 
 	tests := []test{
@@ -131,7 +131,7 @@ func TestSilenceFiltering(t *testing.T) {
 	// Not Equal
 	notEqual, err := labels.NewMatcher(labels.MatchNotEqual, "label1", "test1")
 	if err != nil {
-		t.Error("Unexpected error %v", err)
+		t.Errorf("Unexpected error %v", err)
 	}
 
 	tests = []test{
@@ -161,7 +161,7 @@ func TestSilenceFiltering(t *testing.T) {
 	// Regexp Equal
 	regexpEqual, err := labels.NewMatcher(labels.MatchRegexp, "label1", "tes.*")
 	if err != nil {
-		t.Error("Unexpected error %v", err)
+		t.Errorf("Unexpected error %v", err)
 	}
 
 	tests = []test{
@@ -191,7 +191,7 @@ func TestSilenceFiltering(t *testing.T) {
 	// Regexp Not Equal
 	regexpNotEqual, err := labels.NewMatcher(labels.MatchNotRegexp, "label1", "tes.*")
 	if err != nil {
-		t.Error("Unexpected error %v", err)
+		t.Errorf("Unexpected error %v", err)
 	}
 
 	tests = []test{
@@ -224,13 +224,13 @@ func TestReceiversMatchFilter(t *testing.T) {
 
 	filter, err := regexp.Compile(fmt.Sprintf("^(?:%s)$", "hip.*"))
 	if err != nil {
-		t.Error("Unexpected error %v", err)
+		t.Errorf("Unexpected error %v", err)
 	}
 	require.True(t, receiversMatchFilter(receivers, filter))
 
 	filter, err = regexp.Compile(fmt.Sprintf("^(?:%s)$", "hip"))
 	if err != nil {
-		t.Error("Unexpected error %v", err)
+		t.Errorf("Unexpected error %v", err)
 	}
 	require.False(t, receiversMatchFilter(receivers, filter))
 }
