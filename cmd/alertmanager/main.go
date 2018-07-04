@@ -271,7 +271,7 @@ func main() {
 				level.Warn(logger).Log("msg", "unable to leave gossip mesh", "err", err)
 			}
 		}()
-		go peer.Settle(ctx, *gossipInterval*10)
+		go peer.Settle(ctx, *pushPullInterval)
 	}
 
 	alerts, err := mem.NewAlerts(marker, *alertGCInterval)

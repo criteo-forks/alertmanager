@@ -135,7 +135,7 @@ func (d *delegate) NotifyMsg(b []byte) {
 		level.Warn(d.logger).Log("msg", "decode broadcast", "err", err)
 		return
 	}
-
+	level.Debug(d.logger).Log("received", "NotifyMsg", "len", len(b), "key", p.Key)
 	s, ok := d.states[p.Key]
 	if !ok {
 		return
