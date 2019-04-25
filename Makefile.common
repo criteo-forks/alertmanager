@@ -38,7 +38,7 @@ BIN_DIR                 ?= $(shell pwd)
 DOCKER_IMAGE_TAG        ?= $(subst /,-,$(shell git rev-parse --abbrev-ref HEAD))
 
 .PHONY: all
-all: style staticcheck unused build test
+all: style unused build test
 
 .PHONY: style
 style:
